@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban LocalStorage avec Drag & Drop</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f4f4;
+            margin: 0;
+        }
+
+        header {
+            background: #0079bf;
+            color: #fff;
+            text-align: center;
+            padding: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .kanban {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .column {
+            flex: 1;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .column h2 {
+            text-align: center;
+            margin: 0 0 10px;
+        }
+
+        .tasks {
+            flex: 1;
+            min-height: 50px;
+        }
+
+        .task {
+            background: #eee;
+            margin: 5px 0;
+            padding: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 4px;
+            cursor: grab;
+        }
+
+        .task button {
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        .add-btn {
+            margin-top: 5px;
+            padding: 5px;
+            cursor: pointer;
+            background: #0079bf;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>Kanban LocalStorage</header>
+
+    <div class="kanban">
+        <div class="column" data-col="todo">
+            <h2>À faire</h2>
+            <div class="tasks"></div>
+            <button class="add-btn">+ Ajouter</button>
+        </div>
+        <div class="column" data-col="progress">
+            <h2>En cours</h2>
+            <div class="tasks"></div>
+            <button class="add-btn">+ Ajouter</button>
+        </div>
+        <div class="column" data-col="done">
+            <h2>Terminé</h2>
+            <div class="tasks"></div>
+            <button class="add-btn">+ Ajouter</button>
+        </div>
+    </div>
+
+    <!-- SortableJS -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+    <script>
+        const STORAGE_KEY = "kanbanData";
+        let kanbanData = { todo: [], progress: [], done: [] };
+
+        // Charger localStorage en toute sécurité
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                kanbanData.todo = Array.isArray(parsed.todo) ? parsed.todo : [];
+                kanbanData.progress = Array.isArray(parsed.progress) ? parsed.progress : [];
+                kanbanData.done = Array.isArray(parsed.done) ? parsed.done : [];
+            }
+        } catch (e) {
+            console.warn("Erreur lecture localStorage, réinitialisation", e);
+        }
+
+        // Sauvegarder
+        function save() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(kanbanData));
+        }
+
+        // Render
+        function render() {
+            document.querySelectorAll(".column").forEach(colEl => {
+                const col = colEl.dataset.col;
+                const tasksDiv = colEl.querySelector(".tasks");
+                tasksDiv.innerHTML = "";
+                kanbanData[col].forEach((text, i) => {
+                    const div = document.createElement("div");
+                    div.className = "task";
+                    div.dataset.index = i;
+                    div.innerHTML = `<span>${text}</span>
+        <div>
+          <button class="edit">✏️</button>
+          <button class="del">🗑️</button>
+        </div>`;
+                    tasksDiv.appendChild(div);
+                });
+            });
+
+            initDragAndDrop();
+        }
+
+        // Ajouter carte
+        document.querySelectorAll(".add-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const col = btn.closest(".column").dataset.col;
+                const text = prompt("Titre de la nouvelle carte :");
+                if (text && text.trim() !== "") {
+                    kanbanData[col].push(text.trim());
+                    save();
+                    render();
+                }
+            });
+        });
+
+        // Modifier / Supprimer
+        document.querySelector(".kanban").addEventListener("pointerup", e => {
+            const taskDiv = e.target.closest(".task");
+            if (!taskDiv) return;
+            const col = taskDiv.closest(".column").dataset.col;
+            const idx = taskDiv.dataset.index;
+
+            if (e.target.classList.contains("edit")) {
+                const newText = prompt("Modifier la carte :", kanbanData[col][idx]);
+                if (newText && newText.trim() !== "") {
+                    kanbanData[col][idx] = newText.trim();
+                    save();
+                    render();
+                }
+            }
+
+            if (e.target.classList.contains("del")) {
+                if (confirm("Supprimer cette carte ?")) {
+                    kanbanData[col].splice(idx, 1);
+                    save();
+                    render();
+                }
+            }
+        });
+
+        // Initialiser Sortable
+        function initDragAndDrop() {
+            document.querySelectorAll(".tasks").forEach(col => {
+                if (col._sortable) col._sortable.destroy(); // éviter doublons
+                col._sortable = new Sortable(col, {
+                    group: "kanban",
+                    animation: 150,
+                    onEnd: function (evt) {
+                        const fromCol = evt.from.closest(".column").dataset.col;
+                        const toCol = evt.to.closest(".column").dataset.col;
+                        const itemText = evt.item.querySelector("span").textContent;
+
+                        // Retirer de l'ancienne colonne
+                        kanbanData[fromCol].splice(evt.oldIndex, 1);
+                        // Ajouter à la nouvelle colonne
+                        kanbanData[toCol].splice(evt.newIndex, 0, itemText);
+                        save();
+                        render(); // re-render pour mettre à jour les index
+                    }
+                });
+            });
+        }
+
+        // Premier rendu
+        render();
+    </script>
+</body>
+
+</html>
