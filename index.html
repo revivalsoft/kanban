@@ -151,6 +151,7 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             transition: all 0.2s;
             border-left: 4px solid #0079bf;
+            position: relative;
         }
 
         .task:hover {
@@ -162,29 +163,56 @@
             cursor: grabbing;
         }
 
-        .task.ghost {
-            opacity: 0.3;
+        /* AMÉLIORATION DU DRAG & DROP POUR MOBILE */
+        .task.sortable-ghost {
+            opacity: 0.4;
+            background: #e8f4f8 !important;
         }
 
-        .sortable-drag {
-            opacity: 0.8 !important;
-            background: #0079bf !important;
+        .task.sortable-drag {
+            opacity: 0.95 !important;
+            background: linear-gradient(135deg, #0079bf 0%, #005a8c 100%) !important;
             color: white !important;
-            transform: rotate(2deg) scale(1.05);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3) !important;
+            transform: scale(1.08) rotate(3deg) !important;
+            box-shadow: 0 12px 30px rgba(0, 121, 191, 0.5) !important;
             cursor: grabbing !important;
             border-left: 4px solid #fff !important;
+            z-index: 9999 !important;
+            transition: none !important;
         }
 
-        .sortable-chosen {
+        .task.sortable-drag span {
+            color: white !important;
+        }
+
+        .task.sortable-drag .task-actions {
+            display: none !important;
+        }
+
+        .task.sortable-chosen {
             background: #e8f4f8;
+            transform: scale(0.98);
         }
 
+        /* Fallback pour Android */
         .sortable-fallback {
             opacity: 1 !important;
-            background: #0079bf !important;
+            background: linear-gradient(135deg, #0079bf 0%, #005a8c 100%) !important;
             color: white !important;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+            box-shadow: 0 15px 40px rgba(0, 121, 191, 0.6) !important;
+            transform: scale(1.1) rotate(2deg) !important;
+            z-index: 9999 !important;
+        }
+
+        .sortable-fallback span {
+            color: white !important;
+        }
+
+        /* Zone de dépôt active */
+        .tasks.sortable-drag-over {
+            background: rgba(0, 121, 191, 0.1);
+            border: 2px dashed #0079bf;
+            border-radius: 8px;
         }
 
         .task span {
@@ -437,7 +465,7 @@
 
             .task {
                 padding: 10px;
-                touch-action: pan-y;
+                touch-action: manipulation;
             }
 
             .task-actions {
@@ -462,7 +490,6 @@
             .modal input,
             .modal textarea {
                 font-size: 16px;
-                /* Évite le zoom automatique sur iOS */
             }
 
             .add-btn {
@@ -655,7 +682,6 @@
             }
 
             modal.classList.add("active");
-            // Focus seulement sur desktop
             if (window.innerWidth > 768) {
                 input.focus();
             }
@@ -728,7 +754,6 @@
             const taskDiv = e.target.closest(".task");
             if (!taskDiv) return;
 
-            // Empêcher la propagation si on clique sur un bouton
             if (e.target.classList.contains("edit") || e.target.classList.contains("del")) {
                 e.stopPropagation();
                 e.preventDefault();
@@ -751,27 +776,75 @@
             }
         });
 
-        // Drag & Drop
+        // Drag & Drop - CONFIGURATION OPTIMISÉE POUR ANDROID
         function initDragAndDrop() {
             document.querySelectorAll(".tasks").forEach(col => {
                 if (col._sortable) col._sortable.destroy();
                 col._sortable = new Sortable(col, {
                     group: "kanban",
-                    animation: 200,
-                    ghostClass: "ghost",
+                    animation: 150,
+
+                    // Classes pour le feedback visuel
+                    ghostClass: "sortable-ghost",
                     chosenClass: "sortable-chosen",
                     dragClass: "sortable-drag",
-                    forceFallback: true,
+
+                    // Configuration mobile optimisée
+                    forceFallback: true,  // Force l'utilisation du fallback HTML5
                     fallbackClass: "sortable-fallback",
-                    fallbackTolerance: 3,
-                    touchStartThreshold: 5,
-                    delay: 200,
+                    fallbackOnBody: true,  // Attache l'élément au body pour éviter les problèmes de clipping
+                    fallbackTolerance: 5,  // Tolérance avant de considérer qu'on drag
+
+                    // Touch optimisations
+                    touchStartThreshold: 10,  // Pixels de mouvement avant de déclencher le drag
+                    delay: 150,  // Délai avant le drag (évite les conflits avec le scroll)
                     delayOnTouchOnly: true,
+
+                    // Scroll
                     scroll: true,
-                    scrollSensitivity: 30,
-                    scrollSpeed: 10,
+                    scrollSensitivity: 50,
+                    scrollSpeed: 15,
                     bubbleScroll: true,
+
+                    // Support du swipe
+                    swapThreshold: 0.65,
+                    invertSwap: false,
+
+                    // Direction
+                    direction: 'vertical',
+
+                    // Events
+                    onChoose: function (evt) {
+                        // Vibration légère au début du drag (si supporté)
+                        if (navigator.vibrate) {
+                            navigator.vibrate(50);
+                        }
+                    },
+
+                    onStart: function (evt) {
+                        // Marquer la zone de départ
+                        evt.from.classList.add('sortable-drag-over');
+                    },
+
+                    onMove: function (evt) {
+                        // Highlight la zone de destination
+                        document.querySelectorAll('.tasks').forEach(t => {
+                            t.classList.remove('sortable-drag-over');
+                        });
+                        evt.to.classList.add('sortable-drag-over');
+                    },
+
                     onEnd: function (evt) {
+                        // Retirer tous les highlights
+                        document.querySelectorAll('.tasks').forEach(t => {
+                            t.classList.remove('sortable-drag-over');
+                        });
+
+                        // Vibration de confirmation
+                        if (navigator.vibrate) {
+                            navigator.vibrate(30);
+                        }
+
                         const fromCol = evt.from.closest(".column").dataset.col;
                         const toCol = evt.to.closest(".column").dataset.col;
                         const itemText = kanbanData[fromCol][evt.oldIndex];
@@ -829,13 +902,11 @@
 
         // Raccourcis clavier
         document.addEventListener("keydown", (e) => {
-            // Échap pour fermer les modales
             if (e.key === "Escape") {
                 closeModal();
                 closeConfirm();
             }
 
-            // Entrée pour valider dans le modal de tâche
             if (e.key === "Enter" && e.ctrlKey && currentAction) {
                 saveTask();
             }
