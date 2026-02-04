@@ -4,95 +4,433 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Kanban en ligne simple et rapide, tout-en-un. Organisez vos tâches, projets et priorités directement dans le navigateur. Sauvegarde automatique via LocalStorage.">
+    <meta name="keywords"
+        content="kanban, gestion de projet, tâches, tableau kanban, javascript, LocalStorage, outil en ligne, facile à utiliser">
+    <meta name="author" content="RevivalSoft">
     <title>Kanban LocalStorage avec Drag & Drop</title>
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://revivalsoft.com/kanban/public">
+    <!-- Favicon classique -->
+    <link rel="icon" type="image/png" sizes="32x32" href="kanban.png">
+    <!-- Apple Touch Icon (iOS/iPadOS) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="kanban.png">
+    <!-- Android Chrome -->
+    <link rel="icon" type="image/png" sizes="512x512" href="kanban.png">
+
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial;
-            background: #f4f4f4;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             margin: 0;
+            padding: 0;
+            min-height: 100vh;
         }
 
         header {
-            background: #0079bf;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
             color: #fff;
             text-align: center;
+            padding: 1.5rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            text-align: center;
             padding: 1rem;
-            font-size: 1.2rem;
+        }
+
+        .controls button {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls button:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
 
         .kanban {
             display: flex;
-            gap: 10px;
-            padding: 10px;
+            gap: 15px;
+            padding: 20px;
+            overflow-x: auto;
         }
 
         .column {
             flex: 1;
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
             display: flex;
             flex-direction: column;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .column:hover {
+            transform: translateY(-2px);
         }
 
         .column h2 {
             text-align: center;
-            margin: 0 0 10px;
+            margin: 0 0 15px;
+            font-size: 1.2rem;
+            color: #333;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #0079bf;
+        }
+
+        .column[data-col="todo"] h2 {
+            border-bottom-color: #eb5a46;
+        }
+
+        .column[data-col="progress"] h2 {
+            border-bottom-color: #f2d600;
+        }
+
+        .column[data-col="done"] h2 {
+            border-bottom-color: #61bd4f;
         }
 
         .tasks {
             flex: 1;
-            min-height: 50px;
+            min-height: 100px;
+            padding: 5px;
         }
 
         .task {
-            background: #eee;
-            margin: 5px 0;
-            padding: 5px;
+            background: white;
+            margin: 8px 0;
+            padding: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: grab;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            border-left: 4px solid #0079bf;
+        }
+
+        .task:hover {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transform: translateX(2px);
+        }
+
+        .task:active {
+            cursor: grabbing;
+        }
+
+        .task span {
+            flex: 1;
+            word-break: break-word;
+            color: #333;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .task:hover .task-actions {
+            opacity: 1;
         }
 
         .task button {
-            margin-left: 5px;
+            background: none;
+            border: none;
             cursor: pointer;
+            font-size: 1.1rem;
+            padding: 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .task button:hover {
+            background: rgba(0, 0, 0, 0.05);
+            transform: scale(1.1);
         }
 
         .add-btn {
-            margin-top: 5px;
-            padding: 5px;
+            margin-top: 10px;
+            padding: 10px;
             cursor: pointer;
             background: #0079bf;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-btn:hover {
+            background: #026aa7;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.25s ease-in-out;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            transform: scale(0.9) translateY(-20px);
+            opacity: 0;
+            transition: all 0.25s ease-out;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        .modal h3 {
+            margin: 0 0 20px;
+            color: #333;
+            font-size: 1.3rem;
+        }
+
+        .modal input,
+        .modal textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            margin-bottom: 15px;
+            transition: border-color 0.2s;
+        }
+
+        .modal input:focus,
+        .modal textarea:focus {
+            outline: none;
+            border-color: #0079bf;
+        }
+
+        .modal textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-actions button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .modal-actions .btn-primary {
+            background: #0079bf;
+            color: white;
+        }
+
+        .modal-actions .btn-primary:hover {
+            background: #026aa7;
+        }
+
+        .modal-actions .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .modal-actions .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .modal-actions .btn-danger {
+            background: #eb5a46;
+            color: white;
+        }
+
+        .modal-actions .btn-danger:hover {
+            background: #cf513d;
+        }
+
+        /* Confirmation Modal */
+        .confirm-modal {
+            text-align: center;
+        }
+
+        .confirm-modal p {
+            margin: 10px 0 20px;
+            color: #666;
+            font-size: 1rem;
+        }
+
+        /* Task counter */
+        .task-count {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+            font-style: italic;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kanban {
+                flex-direction: column;
+            }
+
+            .column {
+                min-width: 100%;
+            }
+
+            header {
+                font-size: 1.2rem;
+                padding: 1rem;
+            }
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #61bd4f;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            animation: slideInRight 0.3s;
+            display: none;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+            }
+
+            to {
+                transform: translateX(0);
+            }
         }
     </style>
 </head>
 
 <body>
-    <header>Kanban LocalStorage</header>
+    <header>
+        📋 Kanban Board
+        <div style="font-size: 0.8rem; font-weight: normal; margin-top: 5px;">Organisez vos tâches efficacement</div>
+    </header>
+
+    <div class="controls">
+        <button onclick="exportData()">📤 Exporter</button>
+        <button onclick="importData()">📥 Importer</button>
+    </div>
 
     <div class="kanban">
         <div class="column" data-col="todo">
-            <h2>À faire</h2>
+            <h2>À faire <span class="task-count">0</span></h2>
             <div class="tasks"></div>
-            <button class="add-btn">+ Ajouter</button>
+            <button class="add-btn">+ Ajouter une tâche</button>
         </div>
         <div class="column" data-col="progress">
-            <h2>En cours</h2>
+            <h2>En cours <span class="task-count">0</span></h2>
             <div class="tasks"></div>
-            <button class="add-btn">+ Ajouter</button>
+            <button class="add-btn">+ Ajouter une tâche</button>
         </div>
         <div class="column" data-col="done">
-            <h2>Terminé</h2>
+            <h2>Terminé <span class="task-count">0</span></h2>
             <div class="tasks"></div>
-            <button class="add-btn">+ Ajouter</button>
+            <button class="add-btn">+ Ajouter une tâche</button>
         </div>
     </div>
+
+    <!-- Modal pour ajouter/éditer -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal">
+            <h3 id="modalTitle">Nouvelle tâche</h3>
+            <textarea id="taskInput" placeholder="Décrivez votre tâche..."></textarea>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+                <button class="btn-primary" onclick="saveTask()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal confirm-modal">
+            <h3>⚠️ Confirmation</h3>
+            <p id="confirmMessage">Êtes-vous sûr ?</p>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeConfirm()">Annuler</button>
+                <button class="btn-danger" onclick="confirmAction()">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
 
     <!-- SortableJS -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -100,23 +438,44 @@
     <script>
         const STORAGE_KEY = "kanbanData";
         let kanbanData = { todo: [], progress: [], done: [] };
+        let currentAction = null;
+        let confirmCallback = null;
 
-        // Charger localStorage en toute sécurité
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                kanbanData.todo = Array.isArray(parsed.todo) ? parsed.todo : [];
-                kanbanData.progress = Array.isArray(parsed.progress) ? parsed.progress : [];
-                kanbanData.done = Array.isArray(parsed.done) ? parsed.done : [];
+        // Charger localStorage
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    kanbanData.todo = Array.isArray(parsed.todo) ? parsed.todo : [];
+                    kanbanData.progress = Array.isArray(parsed.progress) ? parsed.progress : [];
+                    kanbanData.done = Array.isArray(parsed.done) ? parsed.done : [];
+                }
+            } catch (e) {
+                console.warn("Erreur lecture localStorage", e);
+                showNotification("Erreur de chargement des données", "error");
             }
-        } catch (e) {
-            console.warn("Erreur lecture localStorage, réinitialisation", e);
         }
 
         // Sauvegarder
         function save() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(kanbanData));
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(kanbanData));
+            } catch (e) {
+                console.error("Erreur sauvegarde", e);
+                showNotification("Erreur de sauvegarde", "error");
+            }
+        }
+
+        // Notification
+        function showNotification(message, type = "success") {
+            const notif = document.getElementById("notification");
+            notif.textContent = message;
+            notif.style.background = type === "success" ? "#61bd4f" : "#eb5a46";
+            notif.classList.add("show");
+            setTimeout(() => {
+                notif.classList.remove("show");
+            }, 3000);
         }
 
         // Render
@@ -124,87 +483,227 @@
             document.querySelectorAll(".column").forEach(colEl => {
                 const col = colEl.dataset.col;
                 const tasksDiv = colEl.querySelector(".tasks");
+                const count = colEl.querySelector(".task-count");
+
                 tasksDiv.innerHTML = "";
+
+                if (kanbanData[col].length === 0) {
+                    tasksDiv.innerHTML = '<div class="empty-state">Aucune tâche</div>';
+                }
+
                 kanbanData[col].forEach((text, i) => {
                     const div = document.createElement("div");
                     div.className = "task";
                     div.dataset.index = i;
-                    div.innerHTML = `<span>${text}</span>
-        <div>
-          <button class="edit">✏️</button>
-          <button class="del">🗑️</button>
-        </div>`;
+                    div.innerHTML = `
+                        <span>${text}</span>
+                        <div class="task-actions">
+                            <button class="edit" title="Modifier">✏️</button>
+                            <button class="del" title="Supprimer">🗑️</button>
+                        </div>
+                    `;
                     tasksDiv.appendChild(div);
                 });
+
+                count.textContent = kanbanData[col].length;
             });
 
             initDragAndDrop();
+        }
+
+        // Modal pour ajouter/éditer
+        function openModal(col, index = null) {
+            const modal = document.getElementById("taskModal");
+            const title = document.getElementById("modalTitle");
+            const input = document.getElementById("taskInput");
+
+            currentAction = { col, index };
+
+            if (index !== null) {
+                title.textContent = "Modifier la tâche";
+                input.value = kanbanData[col][index];
+            } else {
+                title.textContent = "Nouvelle tâche";
+                input.value = "";
+            }
+
+            modal.classList.add("active");
+            input.focus();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById("taskModal");
+            modal.classList.remove("active");
+            setTimeout(() => {
+                currentAction = null;
+            }, 250);
+        }
+
+        function saveTask() {
+            const input = document.getElementById("taskInput");
+            const text = input.value.trim();
+
+            if (!text) {
+                showNotification("Veuillez entrer une description", "error");
+                return;
+            }
+
+            const { col, index } = currentAction;
+
+            if (index !== null) {
+                kanbanData[col][index] = text;
+                showNotification("Tâche modifiée ✓");
+            } else {
+                kanbanData[col].push(text);
+                showNotification("Tâche ajoutée ✓");
+            }
+
+            save();
+            render();
+            closeModal();
+        }
+
+        // Modal de confirmation
+        function openConfirm(message, callback) {
+            document.getElementById("confirmMessage").textContent = message;
+            document.getElementById("confirmModal").classList.add("active");
+            confirmCallback = callback;
+        }
+
+        function closeConfirm() {
+            const modal = document.getElementById("confirmModal");
+            modal.classList.remove("active");
+            setTimeout(() => {
+                confirmCallback = null;
+            }, 250);
+        }
+
+        function confirmAction() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirm();
         }
 
         // Ajouter carte
         document.querySelectorAll(".add-btn").forEach(btn => {
             btn.addEventListener("click", () => {
                 const col = btn.closest(".column").dataset.col;
-                const text = prompt("Titre de la nouvelle carte :");
-                if (text && text.trim() !== "") {
-                    kanbanData[col].push(text.trim());
-                    save();
-                    render();
-                }
+                openModal(col);
             });
         });
 
         // Modifier / Supprimer
-        document.querySelector(".kanban").addEventListener("pointerup", e => {
+        document.querySelector(".kanban").addEventListener("click", e => {
             const taskDiv = e.target.closest(".task");
             if (!taskDiv) return;
+
             const col = taskDiv.closest(".column").dataset.col;
-            const idx = taskDiv.dataset.index;
+            const idx = parseInt(taskDiv.dataset.index);
 
             if (e.target.classList.contains("edit")) {
-                const newText = prompt("Modifier la carte :", kanbanData[col][idx]);
-                if (newText && newText.trim() !== "") {
-                    kanbanData[col][idx] = newText.trim();
-                    save();
-                    render();
-                }
+                openModal(col, idx);
             }
 
             if (e.target.classList.contains("del")) {
-                if (confirm("Supprimer cette carte ?")) {
+                openConfirm("Voulez-vous vraiment supprimer cette tâche ?", () => {
                     kanbanData[col].splice(idx, 1);
                     save();
                     render();
-                }
+                    showNotification("Tâche supprimée");
+                });
             }
         });
 
-        // Initialiser Sortable
+        // Drag & Drop
         function initDragAndDrop() {
             document.querySelectorAll(".tasks").forEach(col => {
-                if (col._sortable) col._sortable.destroy(); // éviter doublons
+                if (col._sortable) col._sortable.destroy();
                 col._sortable = new Sortable(col, {
                     group: "kanban",
                     animation: 150,
+                    ghostClass: "ghost",
                     onEnd: function (evt) {
                         const fromCol = evt.from.closest(".column").dataset.col;
                         const toCol = evt.to.closest(".column").dataset.col;
-                        const itemText = evt.item.querySelector("span").textContent;
+                        const itemText = kanbanData[fromCol][evt.oldIndex];
 
-                        // Retirer de l'ancienne colonne
                         kanbanData[fromCol].splice(evt.oldIndex, 1);
-                        // Ajouter à la nouvelle colonne
                         kanbanData[toCol].splice(evt.newIndex, 0, itemText);
+
                         save();
-                        render(); // re-render pour mettre à jour les index
+                        render();
+                        showNotification("Tâche déplacée ✓");
                     }
                 });
             });
         }
 
-        // Premier rendu
+        // Exporter
+        function exportData() {
+            const dataStr = JSON.stringify(kanbanData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `kanban-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            showNotification("Données exportées ✓");
+        }
+
+        // Importer
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        if (imported.todo && imported.progress && imported.done) {
+                            kanbanData = imported;
+                            save();
+                            render();
+                            showNotification("Données importées ✓");
+                        } else {
+                            showNotification("Format de fichier invalide", "error");
+                        }
+                    } catch (e) {
+                        showNotification("Erreur lors de l'import", "error");
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // Raccourcis clavier
+        document.addEventListener("keydown", (e) => {
+            // Échap pour fermer les modales
+            if (e.key === "Escape") {
+                closeModal();
+                closeConfirm();
+            }
+
+            // Entrée pour valider dans le modal de tâche
+            if (e.key === "Enter" && e.ctrlKey && currentAction) {
+                saveTask();
+            }
+        });
+
+        // Initialisation
+        loadData();
         render();
     </script>
+
+    <div style="display:none;">
+        Logiciel Kanban en ligne facile à utiliser, compatible mobile et desktop.
+        Toutes les fonctionnalités d'un tableau Kanban professionnel :
+        création de colonnes, cartes, drag & drop.
+        Sauvegarde automatique via LocalStorage. Aucun téléchargement requis.
+    </div>
 </body>
 
 </html>
