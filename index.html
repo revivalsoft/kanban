@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description"
         content="Kanban en ligne simple et rapide, tout-en-un. Organisez vos tâches, projets et priorités directement dans le navigateur. Sauvegarde automatique via LocalStorage.">
     <meta name="keywords"
@@ -12,13 +12,6 @@
     <title>Kanban LocalStorage avec Drag & Drop</title>
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://revivalsoft.com/kanban/public">
-    <!-- Favicon classique -->
-    <link rel="icon" type="image/png" sizes="32x32" href="kanban.png">
-    <!-- Apple Touch Icon (iOS/iPadOS) -->
-    <link rel="apple-touch-icon" sizes="180x180" href="kanban.png">
-    <!-- Android Chrome -->
-    <link rel="icon" type="image/png" sizes="512x512" href="kanban.png">
-
     <style>
         * {
             box-sizing: border-box;
@@ -137,6 +130,10 @@
 
         .task:active {
             cursor: grabbing;
+        }
+
+        .task.ghost {
+            opacity: 0.3;
         }
 
         .task span {
@@ -331,17 +328,85 @@
 
         /* Responsive */
         @media (max-width: 768px) {
+            body {
+                min-height: 100vh;
+                overflow-x: hidden;
+            }
+
+            header {
+                font-size: 1.1rem;
+                padding: 1rem;
+            }
+
+            header div {
+                font-size: 0.75rem;
+            }
+
+            .controls {
+                padding: 0.5rem;
+            }
+
+            .controls button {
+                padding: 8px 15px;
+                font-size: 0.9rem;
+                margin: 0 3px;
+            }
+
             .kanban {
                 flex-direction: column;
+                padding: 10px;
+                gap: 10px;
+                overflow-x: visible;
             }
 
             .column {
                 min-width: 100%;
+                width: 100%;
+                margin: 0;
+                transform: none !important;
             }
 
-            header {
-                font-size: 1.2rem;
-                padding: 1rem;
+            .column:hover {
+                transform: none !important;
+            }
+
+            .column h2 {
+                font-size: 1rem;
+            }
+
+            .task {
+                padding: 10px;
+                touch-action: none;
+            }
+
+            .task-actions {
+                opacity: 1;
+            }
+
+            .task button {
+                font-size: 1.3rem;
+                padding: 8px;
+            }
+
+            .modal {
+                width: 95%;
+                max-width: 95%;
+                padding: 20px;
+            }
+
+            .modal h3 {
+                font-size: 1.1rem;
+            }
+
+            .modal input,
+            .modal textarea {
+                font-size: 16px;
+                /* Évite le zoom automatique sur iOS */
+            }
+
+            .add-btn {
+                padding: 12px;
+                font-size: 0.95rem;
             }
         }
 
@@ -385,6 +450,7 @@
     <div class="controls">
         <button onclick="exportData()">📤 Exporter</button>
         <button onclick="importData()">📥 Importer</button>
+        <button onclick="checkStorage()">🔍 Vérifier données</button>
     </div>
 
     <div class="kanban">
@@ -528,7 +594,10 @@
             }
 
             modal.classList.add("active");
-            input.focus();
+            // Focus seulement sur desktop
+            if (window.innerWidth > 768) {
+                input.focus();
+            }
         }
 
         function closeModal() {
@@ -598,6 +667,12 @@
             const taskDiv = e.target.closest(".task");
             if (!taskDiv) return;
 
+            // Empêcher la propagation si on clique sur un bouton
+            if (e.target.classList.contains("edit") || e.target.classList.contains("del")) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
             const col = taskDiv.closest(".column").dataset.col;
             const idx = parseInt(taskDiv.dataset.index);
 
@@ -623,6 +698,11 @@
                     group: "kanban",
                     animation: 150,
                     ghostClass: "ghost",
+                    forceFallback: true,
+                    fallbackTolerance: 3,
+                    touchStartThreshold: 5,
+                    delay: 100,
+                    delayOnTouchOnly: true,
                     onEnd: function (evt) {
                         const fromCol = evt.from.closest(".column").dataset.col;
                         const toCol = evt.to.closest(".column").dataset.col;
@@ -649,6 +729,73 @@
             link.download = `kanban-backup-${new Date().toISOString().split('T')[0]}.json`;
             link.click();
             showNotification("Données exportées ✓");
+        }
+
+        // Vérifier le stockage
+        function checkStorage() {
+            let message = "🔍 Analyse du localStorage:\n\n";
+            let foundKeys = [];
+
+            // Chercher toutes les clés qui pourraient contenir des données kanban
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('kanban') || key.includes('Kanban'))) {
+                    foundKeys.push(key);
+                    const data = localStorage.getItem(key);
+                    message += `✓ Clé trouvée: "${key}"\n`;
+                    message += `  Taille: ${data.length} caractères\n\n`;
+                }
+            }
+
+            if (foundKeys.length === 0) {
+                message += "❌ Aucune donnée kanban trouvée\n\n";
+                message += "Le localStorage est vide ou a été effacé.";
+            } else {
+                message += `Total: ${foundKeys.length} clé(s) trouvée(s)\n\n`;
+                message += "Voulez-vous essayer de charger les données de ces clés ?";
+            }
+
+            alert(message);
+
+            // Si des clés sont trouvées, proposer de les charger
+            if (foundKeys.length > 0) {
+                const choice = confirm("Charger les données trouvées ?");
+                if (choice && foundKeys.length === 1) {
+                    tryLoadFromKey(foundKeys[0]);
+                } else if (choice && foundKeys.length > 1) {
+                    // Proposer de choisir
+                    let keyChoice = prompt(`Plusieurs clés trouvées. Entrez le numéro:\n${foundKeys.map((k, i) => `${i + 1}. ${k}`).join('\n')}`);
+                    if (keyChoice && !isNaN(keyChoice)) {
+                        const idx = parseInt(keyChoice) - 1;
+                        if (idx >= 0 && idx < foundKeys.length) {
+                            tryLoadFromKey(foundKeys[idx]);
+                        }
+                    }
+                }
+            }
+        }
+
+        function tryLoadFromKey(key) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.todo || parsed.progress || parsed.done) {
+                        kanbanData.todo = Array.isArray(parsed.todo) ? parsed.todo : [];
+                        kanbanData.progress = Array.isArray(parsed.progress) ? parsed.progress : [];
+                        kanbanData.done = Array.isArray(parsed.done) ? parsed.done : [];
+
+                        // Sauvegarder sous la bonne clé
+                        save();
+                        render();
+                        showNotification(`Données chargées depuis "${key}" ✓`);
+                    } else {
+                        showNotification("Format de données invalide", "error");
+                    }
+                }
+            } catch (e) {
+                showNotification("Erreur lors du chargement", "error");
+            }
         }
 
         // Importer
